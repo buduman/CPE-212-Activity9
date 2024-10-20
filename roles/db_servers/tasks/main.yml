@@ -1,34 +1,88 @@
 ---
-- name: Install epel repo (prereq)
-  yum:
-   name: epel-release
-   state: latest
+- name: Allow Prometheus for Firewall
+  firewalld:
+    port: 9090/tcp
+    permanent: yes
+    state: enabled
+
+- name: Install Prometheus (CentOS)
+  unarchive:
+    src: https://github.com/prometheus/prometheus/releases/download/v2.30.0/prometheus-2.30.0.linux-amd64.tar.gz
+    dest: /usr/local/bin
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
   when: ansible_distribution == "CentOS"
 
-- name: install nagios (centOS)
-  yum:
-    name: nagios
-    state: latest
+- name: Copy Prometheus binaries
+  copy:
+    src: /usr/local/bin/prometheus-2.30.0.linux-amd64/prometheus
+    dest: /usr/local/bin/prometheus
+    mode: 0755
+    remote_src: yes
   when: ansible_distribution == "CentOS"
 
-- name: start nagios (CentOS)
-  service:
-    name: nagios
-    state: restarted
-    enabled: true
+- name: Copy Promtool binaries
+  copy:
+    src: /usr/local/bin/prometheus-2.30.0.linux-amd64/prometheus
+    dest: /usr/local/bin/promtool
+    mode: 0755
+    remote_src: yes
   when: ansible_distribution == "CentOS"
 
-- name: install nagios reqs (CentOS)
-  yum:
-   name:
-    - gcc
-    - glibc
-    - gd-devel
-    - httpd
-    - php
-    - freetype-devel
-    - libpng-devel
-   state: latest
-  become: true
+- name: Create Prometheus directories
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+  when: ansible_distribution == "CentOS"
+
+- name: Copy prometheus.yml to /etc/prometheus
+  command: cp /usr/local/bin/prometheus-2.30.0.linux-amd64/prometheus.yml /etc/prometheus
+  when: ansible_distribution == "CentOS"
+
+- name: Copy consoles directory to /etc/prometheus
+  command: cp -r /usr/local/bin/prometheus-2.30.0.linux-amd64/consoles /etc/prometheus
+  when: ansible_distribution == "CentOS"
+
+- name: Copy console_libraries directory to /etc/prometheus
+  command: cp -r /usr/local/bin/prometheus-2.30.0.linux-amd64/console_libraries /etc/prometheus
+  when: ansible_distribution == "CentOS"
+
+- name: Create prometheus.service file
+  copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      User=root
+      Group=root
+      Type=simple
+      ExecStart=/usr/local/bin/prometheus \
+              --config.file /etc/prometheus/prometheus.yml \
+              --storage.tsdb.path /var/lib/prometheus \
+              --web.console.templates=/etc/prometheus/consoles \
+              --web.console.libraries=/etc/prometheus/console_libraries \
+
+      [Install]
+      WantedBy=multi-user.target
+  when: ansible_distribution == "CentOS"
+
+- name: Reload systemd
+  command: systemctl daemon-reload
+  when: ansible_distribution == "CentOS"
+
+- name: Start Prometheus Service
+  systemd:
+     name: prometheus
+     enabled: yes
+     state: started
   when: ansible_distribution == "CentOS"
 

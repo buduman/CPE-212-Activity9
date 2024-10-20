@@ -1,26 +1,42 @@
 ---
-- name: Install Nagios (Ubuntu)
+- name: Open port 9090
+   ufw:
+     rule: allow
+     port: 9090
+     proto: tcp
+     state: enabled
+
+- name: Install Prometheus (Ubuntu)
   apt:
-    name: nagios3-core
+    name: prometheus
     state: latest
   when: ansible_distribution == "Ubuntu"
 
-- name: start nagios (Ubuntu)
-  service:
-    name: nagios3
-    state: restarted
-    enabled: true
-  when: ansible_distribution == "Ubuntu"
+- name: Create prometheus.service file
+  copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus
+      Wants=network-online.target
+      After=network-online.target
 
-- name: install nagios reqs (Ubuntu)
-  apt:
-   name:
-    - libpng-dev
-    - libfreetype6-dev
-    - gcc
-    - libc6-dev
-    - apache2
-    - php
-    - libgd-dev
-   state: latest
+      [Service]
+      User=root
+      Group=root
+      Type=simple
+      ExecStart=/usr/local/bin/prometheus \
+              --config.file /etc/prometheus/prometheus.yml \
+              --storage.tsdb.path /var/lib/prometheus \
+              --web.console.templates=/etc/prometheus/consoles \
+              --web.console.libraries=/etc/prometheus/console_libraries \
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Start Prometheus Service (Ubuntu)
+  systemd:
+    name: prometheus
+    enabled: yes
+    state: started
   when: ansible_distribution == "Ubuntu"

@@ -1,10 +1,10 @@
 ---
 - name: Open port 9090
-   ufw:
-     rule: allow
-     port: 9090
-     proto: tcp
-     state: enabled
+  ufw:
+    rule: allow
+    port: 9090
+    proto: tcp
+    state: enabled
 
 - name: Install Prometheus (Ubuntu)
   apt:
